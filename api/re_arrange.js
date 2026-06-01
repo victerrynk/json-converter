@@ -1,69 +1,45 @@
-const express = require('express');
-const app = express();
+export default async function handler(req, res) {
+  // 1. อนุญาตให้ใช้ Request แบบ POST เท่านั้น
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed (กรุณาใช้ POST เท่านั้น)' });
+  }
 
-// Middleware to automatically parse incoming JSON payloads
-app.use(express.json());
+  try {
+    const jsonArray = req.body;
 
-/**
- * Core function to group the incoming JSON data by accountName
- * and extract unique attribute values.
- */
-function reArrangeData(jsonArray) {
-    const groupedData = {};
-
-    jsonArray.forEach(item => {
-        const email = item.accountName;
-        const value = item.attributeValue;
-
-        // Skip invalid data
-        if (!email || !value) return;
-
-        // Initialize array for the email if it doesn't exist
-        if (!groupedData[email]) {
-            groupedData[email] = [];
-        }
-
-        // Keep only unique values per email
-        if (!groupedData[email].includes(value)) {
-            groupedData[email].push(value);
-        }
-    });
-
-    // Convert the grouped object into the final array format
-    return Object.keys(groupedData).map(email => ({
-        accountName: email,
-        attributeValues: groupedData[email]
-    }));
-}
-
-// POST Endpoint that accepts the array and returns the grouped result
-app.post('/api/re-arrange', (req, res) => {
-    try {
-        const inputData = req.body;
-
-        // Validation: Ensure the request body is actually an array
-        if (!Array.isArray(inputData)) {
-            return res.status(400).json({ 
-                error: "Invalid input. Expected a JSON array." 
-            });
-        }
-
-        // Process the data
-        const processedOutput = reArrangeData(inputData);
-
-        // Send back the pure JSON response
-        return res.json(processedOutput);
-
-    } catch (error) {
-        return res.status(500).json({ 
-            error: "An internal server error occurred.", 
-            details: error.message 
-        });
+    // 2. ตรวจสอบว่าเป็น JSON Array จริงไหม
+    if (!Array.isArray(jsonArray)) {
+      return res.status(400).json({ error: 'ข้อมูลที่ส่งมาไม่ใช่ JSON Array' });
     }
-});
 
-// Start the server on port 3000
-const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`Web service is running on http://localhost:${PORT}`);
-});
+    // 3. เริ่มกระบวนการ Grouping ข้อมูลด้วย .reduce()
+    const groupedData = jsonArray.reduce((acc, currentItem) => {
+      const { accountName, attributeValue } = currentItem;
+
+      // ถ้ายังไม่เคยเจอ accountName นี้ในระบบมาก่อน ให้สร้างโครงสร้างเริ่มต้นไว้
+      if (!acc[accountName]) {
+        acc[accountName] = {
+          accountName: accountName,
+          attributeValue: []
+        };
+      }
+
+      // นำ attributeValue ของไอเทมปัจจุบัน ยัดใส่เข้า Array ด้านใน
+      // (ใส่ไอเดียเผื่อไว้: ใช้ !acc[accountName].attributeValue.includes(attributeValue) ถ้าไม่ต้องการค่าซ้ำด้านใน)
+      if (attributeValue) {
+        acc[accountName].attributeValue.push(attributeValue);
+      }
+
+      return acc;
+    }, {}); // เริ่มต้นด้วย Object ว่าง {}
+
+    // 4. แปลง Object ที่จับกลุ่มเสร็จแล้ว กลับมาเป็น Array ของผลลัพธ์
+    const finalResult = Object.values(groupedData);
+
+    // 5. ส่งผลลัพธ์กลับออกไปเป็น JSON Array
+    return res.status(200).json(finalResult);
+
+  } catch (error) {
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในระบบในการประมวลผลข้อมูล' });
+  }
+}
