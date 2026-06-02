@@ -1,5 +1,12 @@
 export default async function handler(req, res) {
-  // 1. อนุญาตให้ใช้ Request แบบ POST เท่านั้น
+const MY_SECRET_TOKEN = process.env.MY_API_TOKEN;
+const authHeader = req.headers['authorization'];
+
+ 
+  if (!authHeader || authHeader !== `Bearer ${MY_SECRET_TOKEN}`) {
+    return res.status(401).json({ error: 'Unauthorized: Token ไม่ถูกต้อง หรือไม่ได้ใส่ Token' });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed (กรุณาใช้ POST เท่านั้น)' });
   }
